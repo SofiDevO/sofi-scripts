@@ -1,0 +1,5 @@
+#!/bin/bash
+# Pull: git pull origin <branch> (uses current branch automatically)
+branch=$(git rev-parse --abbrev-ref HEAD)
+echo "Pulling branch '$branch' from origin..."
+git pull origin "$branch"

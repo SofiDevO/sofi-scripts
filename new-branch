@@ -1,0 +1,24 @@
+#!/bin/bash
+echo -e "\033[0;34m"
+echo "╔════════════════════════════════════════════════════════╗"
+echo "║              Create new branch  🦝                     ║"
+echo "╚════════════════════════════════════════════════════════╝"
+echo -e "\033[0m"
+# Prompt for branch name
+read -p "🦝  Enter the new branch name: " branch_name
+
+# Validate the name is not empty
+if [ -z "$branch_name" ]; then
+  echo "❌ Branch name cannot be empty."
+  exit 1
+fi
+
+# Create the new branch
+git checkout -b "$branch_name"
+
+# Confirmation
+if [ $? -eq 0 ]; then
+  echo "✅ Branch '$branch_name' created and checked out successfully."
+else
+  echo "❌ An error occurred while creating the branch."
+fi

@@ -1,0 +1,201 @@
+#!/bin/bash
+echo -e "\033[0;34m"
+echo "╔════════════════════════════════════════════════════════╗"
+echo "║              Set up development environment          ║"
+echo "╚════════════════════════════════════════════════════════╝"
+echo -e "\033[0m"
+
+# Create .ssh folder if it does not exist
+mkdir -p ~/.ssh
+
+# Capture main user information
+echo "🔧 Git user configuration:"
+echo "📝 Enter the username for gitconfig:"
+read main_user_name
+echo "📧 Enter the email for gitconfig:"
+read main_user_email
+echo "Enter the SSH key name (will be used as gh-<name>, e.g. personal):"
+read main_key_name
+if [ -z "$main_key_name" ]; then
+    echo "❌ SSH key name cannot be empty."
+    exit 1
+fi
+
+# Arrays for additional users
+declare -a extra_names
+declare -a extra_emails
+declare -a extra_dirs
+extra_count=0
+
+# Ask for additional users
+while true; do
+    echo ""
+    echo "👥 Do you want to add an additional user to gitconfig?"
+    select opt in "Yes, add another user" "No, continue"; do
+        case $opt in
+            "Yes, add another user")
+                echo "📝 Enter the username:"
+                read extra_name
+                echo "📧 Enter the email:"
+                read extra_email
+
+                while true; do
+                    echo "📁 Enter the directory name for this user (e.g. work):"
+                    read dir_name
+                    if [ -z "$dir_name" ]; then
+                        echo "❌ Directory name cannot be empty."
+                        continue
+                    fi
+                    if [ -d ~/"$dir_name" ]; then
+                        echo "⚠️  Directory ~/$dir_name already exists."
+                        select dir_opt in "Choose a different name" "Continue with this directory"; do
+                            case $dir_opt in
+                                "Choose a different name") break ;;
+                                "Continue with this directory") break 2 ;;
+                                *) echo "❌ Invalid option." ;;
+                            esac
+                        done
+                        [[ "$dir_opt" == "Choose a different name" ]] && continue
+                    fi
+                    break
+                done
+
+                extra_names[$extra_count]="$extra_name"
+                extra_emails[$extra_count]="$extra_email"
+                extra_dirs[$extra_count]="$dir_name"
+                extra_count=$((extra_count + 1))
+                break
+                ;;
+            "No, continue")
+                break 2
+                ;;
+            *) echo "❌ Invalid option." ;;
+        esac
+    done
+done
+
+echo ""
+echo "📄 Generating Git configuration files..."
+
+# Create main .gitconfig
+cat > ~/.gitconfig << EOF
+[user]
+	name = $main_user_name
+	email = $main_user_email
+
+EOF
+
+# Add includeIf for additional users
+for ((i=0; i<extra_count; i++)); do
+    cat >> ~/.gitconfig << EOF
+[includeIf "gitdir:~/${extra_dirs[$i]}/"]
+    path = ~/.gitconfig-${extra_dirs[$i]}
+
+EOF
+done
+
+cat >> ~/.gitconfig << EOF
+[init]
+	defaultBranch = main
+EOF
+
+# Create .gitconfig for each additional user
+for ((i=0; i<extra_count; i++)); do
+    cat > ~/.gitconfig-${extra_dirs[$i]} << EOF
+[user]
+    name = ${extra_names[$i]}
+    email = ${extra_emails[$i]}
+EOF
+    echo "✅ Created ~/.gitconfig-${extra_dirs[$i]}"
+done
+
+echo "🔐 Generating SSH configuration file..."
+
+# Create SSH config file
+cat > ~/.ssh/config << EOF
+# Configuration for $main_user_name
+Host gh-$main_key_name
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/$main_key_name
+
+EOF
+
+# Add hosts for additional users
+for ((i=0; i<extra_count; i++)); do
+    cat >> ~/.ssh/config << EOF
+# Configuration for ${extra_names[$i]} (${extra_dirs[$i]})
+Host gh-${extra_dirs[$i]}
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/${extra_dirs[$i]}
+
+EOF
+done
+
+echo "🔐 Generating SSH key for $main_user_name..."
+
+if [ ! -f ~/.ssh/"$main_key_name" ]; then
+    echo "🔐 Set a password for the SSH key of $main_user_name"
+    while true; do
+        read -s -p "Password: " pass1
+        echo
+        read -s -p "Confirm password: " pass2
+        echo
+        if [ "$pass1" == "$pass2" ]; then
+            ssh-keygen -t ed25519 -f ~/.ssh/"$main_key_name" -C "$main_user_email" -N "$pass1"
+            break
+        else
+            echo "❌ Passwords do not match. Try again."
+        fi
+    done
+else
+    echo "ℹ️  Key ~/.ssh/$main_key_name already exists, skipping generation."
+fi
+
+# Generate SSH keys for additional users
+for ((i=0; i<extra_count; i++)); do
+    key="${extra_dirs[$i]}"
+    if [ ! -f ~/.ssh/"$key" ]; then
+        echo ""
+        echo "🔐 Set a password for the SSH key of ${extra_names[$i]} ($key)"
+        while true; do
+            read -s -p "Password: " pass1
+            echo
+            read -s -p "Confirm password: " pass2
+            echo
+            if [ "$pass1" == "$pass2" ]; then
+                ssh-keygen -t ed25519 -f ~/.ssh/"$key" -C "${extra_emails[$i]}" -N "$pass1"
+                break
+            else
+                echo "❌ Passwords do not match. Try again."
+            fi
+        done
+    else
+        echo "ℹ️  Key ~/.ssh/$key already exists, skipping generation."
+    fi
+done
+
+# Set correct permissions
+chmod 700 ~/.ssh
+chmod 600 ~/.ssh/config
+[ -f ~/.ssh/"$main_key_name" ]     && chmod 600 ~/.ssh/"$main_key_name"
+[ -f ~/.ssh/"$main_key_name".pub ] && chmod 644 ~/.ssh/"$main_key_name".pub
+for ((i=0; i<extra_count; i++)); do
+    key="${extra_dirs[$i]}"
+    [ -f ~/.ssh/"$key" ]     && chmod 600 ~/.ssh/"$key"
+    [ -f ~/.ssh/"$key".pub ] && chmod 644 ~/.ssh/"$key".pub
+done
+
+echo ""
+echo "✅ Git and SSH configuration completed successfully."
+echo "📋 Configuration summary:"
+echo "   • Main user: $main_user_name ($main_user_email)"
+for ((i=0; i<extra_count; i++)); do
+    echo "   • Additional user: ${extra_names[$i]} (${extra_emails[$i]}) — ~/${extra_dirs[$i]}/"
+done
+echo "🔑 SSH keys:"
+echo "   • ~/.ssh/$main_key_name (gh-$main_key_name) for $main_user_name"
+for ((i=0; i<extra_count; i++)); do
+    echo "   • ~/.ssh/${extra_dirs[$i]} for ${extra_names[$i]}"
+done

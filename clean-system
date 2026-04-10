@@ -1,0 +1,55 @@
+#!/bin/bash
+
+# Clean cache and junk files
+echo "Starting system cleanup..."
+
+# Clean apt package cache (requires sudo)
+if [ -x "$(command -v apt-get)" ]; then
+    echo "Cleaning package cache (apt)..."
+    sudo apt-get clean
+    sudo apt-get autoremove -y
+    sudo apt-get autoclean
+fi
+
+# Clean user cache
+echo "Cleaning user cache (~/.cache/thumbnails)..."
+rm -rf ~/.cache/thumbnails/*
+
+# Empty trash
+echo "Emptying trash..."
+rm -rf ~/.local/share/Trash/*
+
+echo "File cleanup complete."
+echo "--------------------------------"
+
+# Ask about background processes
+read -p "Do you want to close background processes? (Y/n): " response
+
+# Convert to lowercase for easier comparison or use regex
+if [[ "$response" =~ ^[Yy]$ ]]; then
+    echo "Closing background processes..."
+
+    # List current user's processes (top 15 by CPU)
+    echo "Top 15 active processes for current user:"
+    ps -u "$USER" -o pid,comm,%cpu,%mem --sort=-%cpu | head -n 16
+
+    while true; do
+        echo ""
+        read -p "Enter the PID of the process to close (or press Enter to finish): " pid
+        if [ -z "$pid" ]; then
+            break
+        fi
+
+        if kill "$pid"; then
+            echo "Process $pid closed successfully."
+        else
+            echo "Error closing process $pid. Check that the PID is correct."
+        fi
+    done
+
+    echo "Process management complete."
+else
+    echo "Operation cancelled. No processes were closed."
+fi
+
+echo "Maintenance complete!"

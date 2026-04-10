@@ -1,0 +1,162 @@
+#!/bin/bash
+echo -e "\033[0;34m"
+echo "╔════════════════════════════════════════════════════════╗"
+echo "║              Add additional SSH user                   ║"
+echo "╚════════════════════════════════════════════════════════╝"
+echo -e "\033[0m"
+
+# Check that a main .gitconfig exists
+if [ ! -f ~/.gitconfig ]; then
+    echo "❌ ~/.gitconfig not found. Run setup-git-users first."
+    exit 1
+fi
+
+# Username
+echo "📝 Enter the username:"
+read user_name
+if [ -z "$user_name" ]; then
+    echo "❌ Name cannot be empty."
+    exit 1
+fi
+
+# Email
+while true; do
+    echo "📧 Enter the user email:"
+    read user_email
+    if [ -z "$user_email" ]; then
+        echo "❌ Email cannot be empty."
+    elif [[ ! "$user_email" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+        echo "❌ Invalid format. Example: user@domain.com"
+    else
+        break
+    fi
+done
+
+# SSH key name / host (gh- prefix)
+while true; do
+    echo "🔑 Enter the SSH key name (will be used as gh-<name>):"
+    read key_name
+    if [ -z "$key_name" ]; then
+        echo "❌ Name cannot be empty."
+        continue
+    fi
+    if [[ ! "$key_name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo "❌ Only letters, numbers, hyphens and underscores are allowed."
+        continue
+    fi
+    if [ -f ~/.ssh/"$key_name" ]; then
+        echo "⚠️  Key ~/.ssh/$key_name already exists."
+        echo "  1) Choose a different name"
+        echo "  2) Continue (existing key will not be overwritten)"
+        read -p "Answer: " overwrite_choice
+        if [ "$overwrite_choice" = "1" ]; then
+            continue
+        fi
+    fi
+    break
+done
+
+ssh_host="gh-$key_name"
+
+# Associated directory (for includeIf in .gitconfig)
+while true; do
+    echo "📁 Enter the directory associated with this user (e.g. work):"
+    read dir_name
+    if [ -z "$dir_name" ]; then
+        echo "❌ Directory name cannot be empty."
+        continue
+    fi
+    if [ -d ~/"$dir_name" ]; then
+        echo "⚠️  Directory ~/$dir_name already exists."
+        echo "  1) Choose a different name"
+        echo "  2) Continue with this directory"
+        read -p "Answer: " dir_choice
+        if [ "$dir_choice" = "1" ]; then
+            continue
+        fi
+    fi
+    break
+done
+
+echo ""
+echo "📄 Updating Git configuration..."
+
+# Add includeIf to main .gitconfig (before [init])
+if grep -q "gitdir:~/$dir_name/" ~/.gitconfig; then
+    echo "ℹ️  includeIf for ~/$dir_name/ already exists in ~/.gitconfig, skipping."
+else
+    # Insert before [init] if it exists, otherwise append
+    if grep -q "\[init\]" ~/.gitconfig; then
+        sed -i "/\[init\]/i [includeIf \"gitdir:~\/$dir_name\/\"]\n    path = ~\/.gitconfig-$key_name\n" ~/.gitconfig
+    else
+        cat >> ~/.gitconfig << EOF
+
+[includeIf "gitdir:~/$dir_name/"]
+    path = ~/.gitconfig-$key_name
+EOF
+    fi
+    echo "✅ includeIf added to ~/.gitconfig"
+fi
+
+# Create .gitconfig-<key_name>
+cat > ~/.gitconfig-"$key_name" << EOF
+[user]
+    name = $user_name
+    email = $user_email
+EOF
+echo "✅ Created ~/.gitconfig-$key_name"
+
+echo "🔐 Updating SSH configuration..."
+
+# Add host to SSH config
+if grep -q "Host $ssh_host" ~/.ssh/config 2>/dev/null; then
+    echo "ℹ️  Host $ssh_host already exists in ~/.ssh/config, skipping."
+else
+    cat >> ~/.ssh/config << EOF
+
+# Configuration for $user_name ($dir_name)
+Host $ssh_host
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/$key_name
+EOF
+    echo "✅ Host $ssh_host added to ~/.ssh/config"
+fi
+
+echo "🔐 Generating SSH key..."
+
+if [ ! -f ~/.ssh/"$key_name" ]; then
+    while true; do
+        read -s -p "SSH key password: " pass1
+        echo
+        read -s -p "Confirm password: " pass2
+        echo
+        if [ "$pass1" = "$pass2" ]; then
+            ssh-keygen -t ed25519 -f ~/.ssh/"$key_name" -C "$user_email" -N "$pass1"
+            break
+        else
+            echo "❌ Passwords do not match. Try again."
+        fi
+    done
+else
+    echo "ℹ️  Key ~/.ssh/$key_name already exists, skipping generation."
+fi
+
+# Set permissions
+chmod 600 ~/.ssh/"$key_name" 2>/dev/null
+chmod 644 ~/.ssh/"$key_name".pub 2>/dev/null
+chmod 600 ~/.ssh/config
+
+echo ""
+echo "✅ Additional SSH user configured successfully."
+echo "📋 Summary:"
+echo "   • Name:      $user_name"
+echo "   • Email:     $user_email"
+echo "   • SSH host:  $ssh_host"
+echo "   • Key:       ~/.ssh/$key_name"
+echo "   • Directory: ~/$dir_name/"
+echo "   • gitconfig: ~/.gitconfig-$key_name"
+echo ""
+echo "📎 Remember to add the public key to GitHub:"
+echo ""
+cat ~/.ssh/"$key_name".pub 2>/dev/null

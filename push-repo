@@ -1,0 +1,80 @@
+#!/bin/bash
+echo -e "\033[0;34m"
+echo "╔════════════════════════════════════════════════════════╗"
+echo "║              Push to existing repository 🦝            ║"
+echo "╚════════════════════════════════════════════════════════╝"
+echo -e "\033[0m"
+
+# Find available SSH keys
+mapfile -t ssh_keys < <(find ~/.ssh -maxdepth 1 -type f ! -name "*.pub" ! -name "config" ! -name "known_hosts*" ! -name "authorized_keys" -printf "%f\n" 2>/dev/null)
+
+if [ ${#ssh_keys[@]} -eq 0 ]; then
+    echo "❌ No SSH keys found in ~/.ssh/"
+    exit 1
+fi
+
+echo "🔑 Select the SSH key to use:"
+for i in "${!ssh_keys[@]}"; do
+    echo "  $((i+1))) gh-${ssh_keys[$i]}"
+done
+
+while true; do
+    read -p "Answer: " key_choice
+    if [[ "$key_choice" =~ ^[0-9]+$ ]] && [ "$key_choice" -ge 1 ] && [ "$key_choice" -le "${#ssh_keys[@]}" ]; then
+        key_name="${ssh_keys[$((key_choice-1))]}"
+        break
+    fi
+    echo "❌ Invalid option."
+done
+
+SSH_KEY="gh-$key_name"
+
+echo "📝 Enter the first commit message:"
+read commit_message
+if [ -z "$commit_message" ]; then
+    echo "❌ Commit message cannot be empty."
+    exit 1
+fi
+
+echo "🔗 Enter the repository URL (e.g. git@github.com:user/repo.git):"
+read project_url
+
+if [[ ! "$project_url" =~ ^git@github\.com: ]]; then
+  echo "❌ Invalid repository URL. It must start with git@github.com:"
+  exit 1
+fi
+
+# Replace github.com with the selected SSH host
+updated_url=$(echo "$project_url" | sed "s/github.com/$SSH_KEY/")
+
+echo "🔑 Loading SSH key..."
+eval "$(ssh-agent -s)" > /dev/null 2>&1
+ssh-add ~/.ssh/"$key_name"
+
+echo "📦 Initializing Git repository..."
+git init
+
+echo "📁 Staging all files..."
+git add .
+
+echo "💾 Creating first commit..."
+git commit -m "$commit_message"
+
+echo "🌿 Switching to main branch..."
+git branch -M main
+
+echo "📤 Setting remote origin to: $updated_url"
+git remote add origin "$updated_url"
+
+echo "🔄 Pulling remote changes (README/LICENSE)..."
+git pull origin main --allow-unrelated-histories --no-rebase --no-edit
+
+echo "🚀 Pushing to repository..."
+git push -u origin main
+
+if [ $? -eq 0 ]; then
+  echo "✅ Code pushed successfully to the repository."
+else
+  echo "❌ Error pushing to the repository."
+  exit 1
+fi

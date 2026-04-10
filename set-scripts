@@ -1,0 +1,100 @@
+#!/bin/bash
+echo -e "\033[0;34m"
+echo "╔════════════════════════════════════════════════════════╗"
+echo "║            Configure Scripts as Executable           ║"
+echo "╚════════════════════════════════════════════════════════╝"
+echo -e "\033[0m"
+
+# Directory where scripts are located
+SCRIPTS_DIR="/home/$USER/.local/bin"
+SCRIPT_NAME="set-scripts"
+
+echo "📁 Looking for scripts in: $SCRIPTS_DIR"
+
+# Script counter
+count=0
+
+# Iterate over all files in the directory
+for file in "$SCRIPTS_DIR"/*; do
+    # Get only the filename
+    filename=$(basename "$file")
+
+    # Skip if it's this script itself, .md files, or directories
+    if [[ "$filename" == "$SCRIPT_NAME" ]] || [[ "$filename" == *.md ]] || [[ -d "$file" ]]; then
+        continue
+    fi
+
+    # Check if it's a regular file
+    if [[ -f "$file" ]]; then
+        echo "🔧 Processing: $filename"
+
+        # Make the file executable
+        chmod +x "$file"
+
+        if [[ $? -eq 0 ]]; then
+            echo "✅ $filename is now executable"
+            count=$((count + 1))
+        else
+            echo "❌ Error making executable: $filename"
+        fi
+    fi
+done
+
+echo ""
+echo "📊 Summary:"
+echo "   • Scripts processed: $count"
+echo "   • Directory: $SCRIPTS_DIR"
+
+# Check if the directory is already in PATH
+if [[ ":$PATH:" == *":$SCRIPTS_DIR:"* ]]; then
+    echo "✅ Directory $SCRIPTS_DIR is already in PATH"
+else
+    echo "🔧 Adding $SCRIPTS_DIR to PATH..."
+
+    # Detect user shell
+    user_shell=$(basename "$SHELL")
+
+    case "$user_shell" in
+        "bash")
+            config_file="$HOME/.bashrc"
+            ;;
+        "zsh")
+            config_file="$HOME/.zshrc"
+            ;;
+        "fish")
+            config_file="$HOME/.config/fish/config.fish"
+            ;;
+        *)
+            config_file="$HOME/.profile"
+            ;;
+    esac
+
+    echo "🐚 Shell detected: $user_shell"
+    echo "📝 Config file: $config_file"
+
+    # Check if the line already exists in the config file
+    if [[ -f "$config_file" ]] && grep -q "export PATH.*$SCRIPTS_DIR" "$config_file"; then
+        echo "ℹ️ PATH configuration already exists in $config_file"
+    else
+        # Add to PATH in the corresponding config file
+        echo "" >> "$config_file"
+        echo "# Custom scripts - Added by set-scripts" >> "$config_file"
+        echo "export PATH=\"$SCRIPTS_DIR:\$PATH\"" >> "$config_file"
+        echo "✅ PATH updated in $config_file"
+        echo "🔄 Run 'source $config_file' or restart the terminal to apply changes"
+    fi
+fi
+
+echo ""
+echo "🎉 Setup complete!"
+echo "📋 Available scripts:"
+for file in "$SCRIPTS_DIR"/*; do
+    filename=$(basename "$file")
+    if [[ "$filename" != "$SCRIPT_NAME" ]] && [[ "$filename" != *.md ]] && [[ -f "$file" ]] && [[ -x "$file" ]]; then
+        echo "   • $filename"
+    fi
+done
+
+echo ""
+echo "💡 You can now run any script from any directory using just its name."
+echo "   Example: clone-repo, push-repo, setup-git-users, etc."

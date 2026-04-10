@@ -1,0 +1,55 @@
+#!/bin/bash
+echo -e "\033[0;34m"
+echo "╔════════════════════════════════════════════════════════╗"
+echo "║          Clone repository 🦝                           ║"
+echo "╚════════════════════════════════════════════════════════╝"
+echo -e "\033[0m"
+
+# Find available SSH keys
+mapfile -t ssh_keys < <(find ~/.ssh -maxdepth 1 -type f ! -name "*.pub" ! -name "config" ! -name "known_hosts" ! -name "authorized_keys" -printf "%f\n" 2>/dev/null)
+
+if [ ${#ssh_keys[@]} -eq 0 ]; then
+    echo "❌ No SSH keys found in ~/.ssh/"
+    exit 1
+fi
+
+echo "🔑 Select the SSH key to use:"
+for i in "${!ssh_keys[@]}"; do
+    echo "  $((i+1))) gh-${ssh_keys[$i]}"
+done
+
+while true; do
+    read -p "Answer: " key_choice
+    if [[ "$key_choice" =~ ^[0-9]+$ ]] && [ "$key_choice" -ge 1 ] && [ "$key_choice" -le "${#ssh_keys[@]}" ]; then
+        key_name="${ssh_keys[$((key_choice-1))]}"
+        break
+    fi
+    echo "❌ Invalid option."
+done
+
+ssh_host="gh-$key_name"
+
+echo "Enter the repository URL (e.g. git@github.com:user/repo.git):"
+read repo_url
+
+if [[ ! "$repo_url" =~ ^git@github\.com: ]]; then
+  echo "❌ URL format must start with git@github.com:"
+  exit 1
+fi
+
+# Replace github.com with the SSH host
+updated_url=$(echo "$repo_url" | sed "s/github.com/$ssh_host/")
+
+# Load the SSH key into the agent
+echo "🔑 Loading SSH key..."
+ssh-add ~/.ssh/"$key_name"
+
+echo "🔗 Cloning from: $updated_url"
+git clone "$updated_url"
+
+# Verification
+if [ $? -eq 0 ]; then
+  echo "✅ Repository cloned successfully."
+else
+  echo "❌ Error cloning the repository."
+fi
