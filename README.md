@@ -66,6 +66,7 @@ Git's `[includeIf "gitdir:~/dir/"]` directive automatically activates a differen
 ```
 
 Clone URLs use the alias instead of `github.com`:
+
 ```
 git@gh-personal:SofiDevO/my-repo.git   ← Uses personal SSH key
 git@gh-work:MyCompany/project.git      ← Uses work SSH key
@@ -77,11 +78,11 @@ git@gh-work:MyCompany/project.git      ← Uses work SSH key
 
 All scripts follow the same naming pattern consistently:
 
-| Component | Pattern | Example |
-|-----------|---------|---------|
-| Private key file | `~/.ssh/<keyname>` | `~/.ssh/personal` |
-| Public key file | `~/.ssh/<keyname>.pub` | `~/.ssh/personal.pub` |
-| SSH config host | `Host gh-<keyname>` | `Host gh-personal` |
+| Component        | Pattern                          | Example                             |
+| ---------------- | -------------------------------- | ----------------------------------- |
+| Private key file | `~/.ssh/<keyname>`               | `~/.ssh/personal`                   |
+| Public key file  | `~/.ssh/<keyname>.pub`           | `~/.ssh/personal.pub`               |
+| SSH config host  | `Host gh-<keyname>`              | `Host gh-personal`                  |
 | Clone URL format | `git@gh-<keyname>:user/repo.git` | `git@gh-personal:SofiDevO/repo.git` |
 
 > The `gh-` prefix is a deliberate namespace to avoid collisions with system-level SSH hosts and make all GitHub aliases immediately recognizable.
@@ -147,12 +148,12 @@ The bootstrapper for the entire toolkit. It iterates over every file in `~/.loca
 
 #### Shell detection matrix
 
-| Shell | Config file modified |
-|-------|---------------------|
-| `bash` | `~/.bashrc` |
-| `zsh` | `~/.zshrc` |
+| Shell  | Config file modified         |
+| ------ | ---------------------------- |
+| `bash` | `~/.bashrc`                  |
+| `zsh`  | `~/.zshrc`                   |
 | `fish` | `~/.config/fish/config.fish` |
-| other | `~/.profile` |
+| other  | `~/.profile`                 |
 
 #### Usage
 
@@ -199,13 +200,13 @@ The primary onboarding script. Configures `~/.gitconfig`, `~/.ssh/config`, and g
 
 #### Inputs collected
 
-| Prompt | Stored as | Notes |
-|--------|-----------|-------|
-| Username | `[user] name` in `~/.gitconfig` | Display name in commits |
-| Email | `[user] email` in `~/.gitconfig` | Must be valid format |
-| SSH key name | `~/.ssh/<name>`, `Host gh-<name>` | Alphanumeric + hyphens only |
-| SSH passphrase | Encrypts the private key | Confirmed twice |
-| Additional users | Repeatable | Each gets a dir-scoped config |
+| Prompt           | Stored as                         | Notes                         |
+| ---------------- | --------------------------------- | ----------------------------- |
+| Username         | `[user] name` in `~/.gitconfig`   | Display name in commits       |
+| Email            | `[user] email` in `~/.gitconfig`  | Must be valid format          |
+| SSH key name     | `~/.ssh/<name>`, `Host gh-<name>` | Alphanumeric + hyphens only   |
+| SSH passphrase   | Encrypts the private key          | Confirmed twice               |
+| Additional users | Repeatable                        | Each gets a dir-scoped config |
 
 #### Generated files
 
@@ -221,12 +222,12 @@ The primary onboarding script. Configures `~/.gitconfig`, `~/.ssh/config`, and g
 
 #### File permissions applied
 
-| File | Permission | Reason |
-|------|-----------|--------|
-| `~/.ssh/` | `700` | SSH daemon rejects world-readable dirs |
-| `~/.ssh/config` | `600` | Sensitive host config |
-| `~/.ssh/<key>` | `600` | Private key — never share this |
-| `~/.ssh/<key>.pub` | `644` | Public key — safe to share |
+| File               | Permission | Reason                                 |
+| ------------------ | ---------- | -------------------------------------- |
+| `~/.ssh/`          | `700`      | SSH daemon rejects world-readable dirs |
+| `~/.ssh/config`    | `600`      | Sensitive host config                  |
+| `~/.ssh/<key>`     | `600`      | Private key — never share this         |
+| `~/.ssh/<key>.pub` | `644`      | Public key — safe to share             |
 
 #### Usage
 
@@ -388,12 +389,14 @@ ssh-ed25519 AAAAC3Nza... sofia@client.dev
 #### Edge case: key already exists
 
 If `~/.ssh/client` already exists:
+
 ```
 ⚠️  Key ~/.ssh/client already exists.
   1) Choose a different name
   2) Continue (existing key will not be overwritten)
 Answer: 2
 ```
+
 The script will skip key generation but still update `.gitconfig` and `~/.ssh/config`.
 
 ---
@@ -442,6 +445,7 @@ Cloning into 'my-app'...
 #### URL validation
 
 The script enforces that the URL starts with `git@github.com:` using Bash regex. HTTPS URLs will be rejected:
+
 ```
 ❌ URL format must start with git@github.com:
 ```
@@ -456,12 +460,12 @@ Identical to `clone-repo` but adds branch selection and uses `--single-branch` f
 
 #### Key difference from `clone-repo`
 
-| Feature | `clone-repo` | `clone-project` |
-|---------|-------------|-----------------|
-| Clones all branches | ✅ | ❌ |
-| Branch selection | ❌ | ✅ |
-| Clone size | Full | Minimal |
-| Use case | General cloning | Feature branch work |
+| Feature             | `clone-repo`    | `clone-project`     |
+| ------------------- | --------------- | ------------------- |
+| Clones all branches | ✅              | ❌                  |
+| Branch selection    | ❌              | ✅                  |
+| Clone size          | Full            | Minimal             |
+| Use case            | General cloning | Feature branch work |
 
 #### Usage
 
@@ -566,6 +570,7 @@ git@github.com:SofiDevO/new-project.git
 #### Key difference from `add-repo`
 
 `push-repo` includes an extra step:
+
 ```bash
 git pull origin main --allow-unrelated-histories --no-rebase --no-edit
 ```
@@ -606,11 +611,11 @@ git@github.com:SofiDevO/project-with-readme.git
 
 #### When to use which script
 
-| Scenario | Script |
-|----------|--------|
-| GitHub repo created empty (no files) | `add-repo` |
-| GitHub repo created with README/LICENSE | `push-repo` |
-| Repo already initialized, just push changes | `gpush` |
+| Scenario                                    | Script      |
+| ------------------------------------------- | ----------- |
+| GitHub repo created empty (no files)        | `add-repo`  |
+| GitHub repo created with README/LICENSE     | `push-repo` |
+| Repo already initialized, just push changes | `gpush`     |
 
 ---
 
@@ -726,13 +731,13 @@ A maintenance script for Debian/Ubuntu-based systems. Runs non-destructive clean
 
 #### What it cleans
 
-| Action | Command | Requires sudo |
-|--------|---------|:-------------:|
-| APT package cache | `apt-get clean` | ✅ |
-| Remove orphaned packages | `apt-get autoremove -y` | ✅ |
-| Remove old downloaded packages | `apt-get autoclean` | ✅ |
-| Thumbnail cache | `rm -rf ~/.cache/thumbnails/*` | ❌ |
-| Trash | `rm -rf ~/.local/share/Trash/*` | ❌ |
+| Action                         | Command                         | Requires sudo |
+| ------------------------------ | ------------------------------- | :-----------: |
+| APT package cache              | `apt-get clean`                 |      ✅       |
+| Remove orphaned packages       | `apt-get autoremove -y`         |      ✅       |
+| Remove old downloaded packages | `apt-get autoclean`             |      ✅       |
+| Thumbnail cache                | `rm -rf ~/.cache/thumbnails/*`  |      ❌       |
+| Trash                          | `rm -rf ~/.local/share/Trash/*` |      ❌       |
 
 #### Usage
 
@@ -787,12 +792,12 @@ An end-to-end setup script that installs and configures a complete WordPress dev
 
 #### Requirements
 
-| Dependency | Auto-installed? | Notes |
-|-----------|:--------------:|-------|
+| Dependency       | Auto-installed? | Notes                                                                       |
+| ---------------- | :-------------: | --------------------------------------------------------------------------- |
 | PHP + extensions | ✅ (if missing) | `php-cli php-mysql php-curl php-gd php-mbstring php-xml php-xmlrpc php-zip` |
-| MariaDB or MySQL | ❌ | Must be installed and running |
-| `wget`, `curl` | ❌ | Standard on most systems |
-| Internet access | — | For WordPress download and WordPress.org salt API |
+| MariaDB or MySQL |       ❌        | Must be installed and running                                               |
+| `wget`, `curl`   |       ❌        | Standard on most systems                                                    |
+| Internet access  |        —        | For WordPress download and WordPress.org salt API                           |
 
 #### Installation flow (7 steps)
 
@@ -879,11 +884,11 @@ To start the server run:
 
 The site title is sanitized to create the directory name and database name:
 
-| Input title | Generated slug | Directory | DB name |
-|-------------|---------------|-----------|---------|
-| `My Dev Blog` | `my-dev-blog` | `./my-dev-blog/` | `my-dev-blog_db` |
+| Input title            | Generated slug        | Directory                | DB name                  |
+| ---------------------- | --------------------- | ------------------------ | ------------------------ |
+| `My Dev Blog`          | `my-dev-blog`         | `./my-dev-blog/`         | `my-dev-blog_db`         |
 | `Client Project 2025!` | `client-project-2025` | `./client-project-2025/` | `client-project-2025_db` |
-| `WordPress` | `wordpress` | `./wordpress/` | `wordpress_db` |
+| `WordPress`            | `wordpress`           | `./wordpress/`           | `wordpress_db`           |
 
 #### Files generated inside `$WP_DIR`
 
@@ -934,6 +939,7 @@ Enter MariaDB root password: ••••••••
 ```
 
 On exhausting retries:
+
 ```
 ╔════════════════════════════════════════════════╗
 ║   Error: Could not connect to MariaDB          ║

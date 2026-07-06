@@ -1,0 +1,98 @@
+#!/usr/bin/env python3
+import os
+import sys
+from datetime import datetime
+
+VAULT_PATH = "/home/sofidev/obsidian-sofi"
+PROJECTS_PATH = os.path.join(VAULT_PATH, "04_PROYECTOS")
+
+SUBFOLDERS = ["arquitectura", "api", "base_datos", "backlog"]
+
+def format_project(project_name):
+    project_path = os.path.join(PROJECTS_PATH, project_name)
+    if not os.path.isdir(project_path):
+        return
+
+    print(f"Processing project: {project_name}")
+
+    # Create standard subfolders
+    for folder in SUBFOLDERS:
+        folder_path = os.path.join(project_path, folder)
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path, exist_ok=True)
+            print(f"  Created subfolder: {folder}")
+
+    # Ensure 00_INDEX.md exists
+    index_path = os.path.join(project_path, "00_INDEX.md")
+    if not os.path.exists(index_path):
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        index_content = f"""---
+project_name: {project_name}
+status: active
+workspace_path: /home/sofidev/lab/{project_name}
+tech_stack: []
+last_major_update: {current_date}
+---
+
+# Index: {project_name}
+
+Welcome to the {project_name} project index. This file connects all project domains to help both users and AI agents navigate the architecture, specifications, and progress.
+
+## Technical Specifications
+- Database Schema & Models: [[base_datos/esquema_prisma]]
+- Architecture: [[arquitectura/documentacion]]
+
+## API & Endpoints
+- API Cheat Sheet & Contracts: [[api/contratos_api]]
+
+## Project Status & Roadmap
+- Active Backlog: [[backlog/tareas_activas]]
+- AI Agent Context File: [[AI_CONTEXT]]
+"""
+        with open(index_path, "w", encoding="utf-8") as f:
+            f.write(index_content)
+        print("  Created 00_INDEX.md")
+
+    # Ensure AI_CONTEXT.md exists
+    ai_context_path = os.path.join(project_path, "AI_CONTEXT.md")
+    if not os.path.exists(ai_context_path):
+        ai_context_content = f"""# AI Context: {project_name}
+
+This file provides a highly condensed, structured, and token-efficient knowledge base for AI agents assisting in the development of the **{project_name}** project. Refer to the project index [[00_INDEX]] for complete modular documentation.
+
+---
+
+## Instructions and Rules for AI Agents
+- Do not use emojis in responses or code comments.
+- If the assigned task is too long or complex, divide it into smaller, manageable subtasks.
+- At the end of each task, provide a descriptive conventional commit message in English that the user can copy and paste.
+"""
+        with open(ai_context_path, "w", encoding="utf-8") as f:
+            f.write(ai_context_content)
+        print("  Created AI_CONTEXT.md")
+
+def main():
+    if not os.path.exists(PROJECTS_PATH):
+        print(f"Error: Projects path {PROJECTS_PATH} does not exist.")
+        sys.exit(1)
+
+    print("Starting Obsidian vault project formatter...")
+    
+    # Iterate through all subdirectories in 04_PROYECTOS
+    try:
+        entries = os.listdir(PROJECTS_PATH)
+    except Exception as e:
+        print(f"Error reading projects directory: {e}")
+        sys.exit(1)
+
+    for entry in entries:
+        if entry.startswith("."):
+            continue
+        entry_path = os.path.join(PROJECTS_PATH, entry)
+        if os.path.isdir(entry_path):
+            format_project(entry)
+            
+    print("Formatting process completed.")
+
+if __name__ == "__main__":
+    main()
