@@ -1,13 +1,29 @@
 #!/bin/bash
+
+if [ "$EUID" -ne 0 ]; then
+  echo "Please execute this command as  sudo:"
+  echo "sudo $0"
+  exit 1
+fi
+
 echo -e "\033[0;34m"
 echo "╔════════════════════════════════════════════════════════╗"
-echo "║            Configure Scripts as Executable           ║"
+echo "║            Configure Scripts as Executable            ║"
 echo "╚════════════════════════════════════════════════════════╝"
 echo -e "\033[0m"
 
-# Directory where scripts are located
-SCRIPTS_DIR="/home/$USER/.local/bin"
+# Obtener el usuario real si se ejecuta con sudo, o el usuario actual
+TARGET_USER="${SUDO_USER:-$USER}"
+TARGET_HOME=$(getent passwd "$TARGET_USER" | cut -d: -f6)
+
+# Ruta a la carpeta del usuario
+SCRIPTS_DIR="$TARGET_HOME/.local/bin"
 SCRIPT_NAME="set-scripts"
+
+if [[ ! -d "$SCRIPTS_DIR" ]]; then
+    echo "❌ El directorio $SCRIPTS_DIR no existe."
+    exit 1
+fi
 
 echo "📁 Looking for scripts in: $SCRIPTS_DIR"
 
@@ -28,11 +44,12 @@ for file in "$SCRIPTS_DIR"/*; do
     if [[ -f "$file" ]]; then
         echo "🔧 Processing: $filename"
 
-        # Make the file executable
-        chmod +x "$file"
+        # Asignar permisos estrictos (700) y devolver la propiedad al usuario real
+        chmod 700 "$file"
+        chown "$TARGET_USER:$TARGET_USER" "$file"
 
         if [[ $? -eq 0 ]]; then
-            echo "✅ $filename is now executable"
+            echo "✅ $filename is now executable (restricted to $TARGET_USER)"
             count=$((count + 1))
         else
             echo "❌ Error making executable: $filename"
@@ -45,29 +62,29 @@ echo "📊 Summary:"
 echo "   • Scripts processed: $count"
 echo "   • Directory: $SCRIPTS_DIR"
 
-# Check if the directory is already in PATH
+# Detect user shell from the real target user
+user_shell=$(basename "$(getent passwd "$TARGET_USER" | cut -d: -f7)")
+
+case "$user_shell" in
+    "bash")
+        config_file="$TARGET_HOME/.bashrc"
+        ;;
+    "zsh")
+        config_file="$TARGET_HOME/.zshrc"
+        ;;
+    "fish")
+        config_file="$TARGET_HOME/.config/fish/config.fish"
+        ;;
+    *)
+        config_file="$TARGET_HOME/.profile"
+        ;;
+esac
+
+# Check if the directory is already in PATH for the user environment
 if [[ ":$PATH:" == *":$SCRIPTS_DIR:"* ]]; then
     echo "✅ Directory $SCRIPTS_DIR is already in PATH"
 else
     echo "🔧 Adding $SCRIPTS_DIR to PATH..."
-
-    # Detect user shell
-    user_shell=$(basename "$SHELL")
-
-    case "$user_shell" in
-        "bash")
-            config_file="$HOME/.bashrc"
-            ;;
-        "zsh")
-            config_file="$HOME/.zshrc"
-            ;;
-        "fish")
-            config_file="$HOME/.config/fish/config.fish"
-            ;;
-        *)
-            config_file="$HOME/.profile"
-            ;;
-    esac
 
     echo "🐚 Shell detected: $user_shell"
     echo "📝 Config file: $config_file"
@@ -80,6 +97,10 @@ else
         echo "" >> "$config_file"
         echo "# Custom scripts - Added by set-scripts" >> "$config_file"
         echo "export PATH=\"$SCRIPTS_DIR:\$PATH\"" >> "$config_file"
+        
+        # Ajustar propietario del archivo de configuración si fue editado
+        chown "$TARGET_USER:$TARGET_USER" "$config_file"
+
         echo "✅ PATH updated in $config_file"
         echo "🔄 Run 'source $config_file' or restart the terminal to apply changes"
     fi
