@@ -3,3 +3,7 @@ fix-apt-repos
 clean-system
 antigravity
 antigravity-ide
+fix-rdp
+fix-apt-repos
+install-wordpress
+

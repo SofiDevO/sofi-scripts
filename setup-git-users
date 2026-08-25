@@ -187,6 +187,281 @@ for ((i=0; i<extra_count; i++)); do
     [ -f ~/.ssh/"$key".pub ] && chmod 644 ~/.ssh/"$key".pub
 done
 
+# Determine mainKey
+if [ "$extra_count" -gt 0 ]; then
+    echo ""
+    echo "🔑 Which key should be the default (mainKey) for clone/push scripts?"
+    echo "  0) $main_key_name (main user)"
+    for ((i=0; i<extra_count; i++)); do
+        echo "  $((i+1))) ${extra_dirs[$i]} (${extra_names[$i]})"
+    done
+    while true; do
+        read -p "Answer [ENTER = $main_key_name]: " mainKey_choice
+        if [ -z "$mainKey_choice" ]; then
+            mainKey="$main_key_name"
+            break
+        fi
+        if [[ "$mainKey_choice" =~ ^[0-9]+$ ]] && [ "$mainKey_choice" -ge 0 ] && [ "$mainKey_choice" -le "$extra_count" ]; then
+            if [ "$mainKey_choice" -eq 0 ]; then
+                mainKey="$main_key_name"
+            else
+                mainKey="${extra_dirs[$((mainKey_choice-1))]}"
+            fi
+            break
+        fi
+        echo "❌ Invalid option."
+    done
+else
+    mainKey="$main_key_name"
+fi
+
+echo ""
+echo "📄 Generating scripts in ~/.local/bin/..."
+
+# Ensure ~/.local/bin exists
+mkdir -p ~/.local/bin
+
+# Generate clone-project
+cat > ~/.local/bin/clone-project << 'SCRIPT_EOF'
+#!/bin/bash
+echo -e "\033[0;34m"
+echo "╔════════════════════════════════════════════════════════╗"
+echo "║   Clone repository from a specific branch 🦝           ║"
+echo "╚════════════════════════════════════════════════════════╝"
+echo -e "\033[0m"
+
+# Default key
+mainKey="__MAIKEY__"
+
+# Find available SSH keys
+mapfile -t ssh_keys < <(find ~/.ssh -maxdepth 1 -type f ! -name "*.pub" ! -name "config" ! -name "known_hosts" ! -name "authorized_keys" -printf "%f\n" 2>/dev/null)
+
+if [ ${#ssh_keys[@]} -eq 0 ]; then
+    echo "❌ No SSH keys found in ~/.ssh/"
+    exit 1
+fi
+
+echo "🔑 Select the SSH key to use (ENTER = gh-$mainKey):"
+for i in "${!ssh_keys[@]}"; do
+    echo "  $((i+1))) gh-${ssh_keys[$i]}"
+done
+
+while true; do
+    read -p "Answer: " key_choice
+    if [ -z "$key_choice" ]; then
+        key_name="$mainKey"
+        break
+    fi
+    if [[ "$key_choice" =~ ^[0-9]+$ ]] && [ "$key_choice" -ge 1 ] && [ "$key_choice" -le "${#ssh_keys[@]}" ]; then
+        key_name="${ssh_keys[$((key_choice-1))]}"
+        break
+    fi
+    echo "❌ Invalid option."
+done
+
+DOMAIN="gh-$key_name"
+
+# Enter branch name
+echo "🦝 Enter the branch name you want to clone:"
+read branch_name
+
+if [ -z "$branch_name" ]; then
+  echo "❌ Branch name cannot be empty."
+  exit 1
+fi
+
+# Enter repository URL
+echo "Enter the repository URL (e.g. git@github.com:user/repo.git):"
+read repo_url
+
+if [[ ! "$repo_url" =~ ^git@github\.com: ]]; then
+  echo "❌ Invalid repository URL. It must start with git@github.com:"
+  exit 1
+fi
+
+# Replace host with the appropriate domain
+updated_url=$(echo "$repo_url" | sed "s|git@github\.com:|git@${DOMAIN}:|")
+
+echo "🔗 Cloning from: $updated_url"
+echo "🌱 Branch: $branch_name"
+
+# Execute clone
+git clone -b "$branch_name" --single-branch "$updated_url"
+
+# Verify success
+if [ $? -eq 0 ]; then
+  echo "✅ Repository cloned successfully."
+else
+  echo "❌ Error cloning the repository."
+fi
+SCRIPT_EOF
+sed -i "s|__MAIKEY__|${mainKey}|g" ~/.local/bin/clone-project
+chmod +x ~/.local/bin/clone-project
+echo "✅ Created ~/.local/bin/clone-project (mainKey=$mainKey)"
+
+# Generate clone-repo
+cat > ~/.local/bin/clone-repo << 'SCRIPT_EOF'
+#!/bin/bash
+echo -e "\033[0;34m"
+echo "╔════════════════════════════════════════════════════════╗"
+echo "║          Clone repository 🦝                           ║"
+echo "╚════════════════════════════════════════════════════════╝"
+echo -e "\033[0m"
+
+# Default key
+mainKey="__MAIKEY__"
+
+# Find available SSH keys
+mapfile -t ssh_keys < <(find ~/.ssh -maxdepth 1 -type f ! -name "*.pub" ! -name "config" ! -name "known_hosts" ! -name "authorized_keys" -printf "%f\n" 2>/dev/null)
+
+if [ ${#ssh_keys[@]} -eq 0 ]; then
+    echo "❌ No SSH keys found in ~/.ssh/"
+    exit 1
+fi
+
+echo "🔑 Select the SSH key to use (ENTER = gh-$mainKey):"
+for i in "${!ssh_keys[@]}"; do
+    echo "  $((i+1))) gh-${ssh_keys[$i]}"
+done
+
+while true; do
+    read -p "Answer: " key_choice
+    if [ -z "$key_choice" ]; then
+        key_name="$mainKey"
+        break
+    fi
+    if [[ "$key_choice" =~ ^[0-9]+$ ]] && [ "$key_choice" -ge 1 ] && [ "$key_choice" -le "${#ssh_keys[@]}" ]; then
+        key_name="${ssh_keys[$((key_choice-1))]}"
+        break
+    fi
+    echo "❌ Invalid option."
+done
+
+ssh_host="gh-$key_name"
+
+echo "Enter the repository URL (e.g. git@github.com:user/repo.git):"
+read repo_url
+
+if [[ ! "$repo_url" =~ ^git@github\.com: ]]; then
+  echo "❌ URL format must start with git@github.com:"
+  exit 1
+fi
+
+# Replace github.com with the SSH host
+updated_url=$(echo "$repo_url" | sed "s/github.com/$ssh_host/")
+
+# Load the SSH key into the agent
+echo "🔑 Loading SSH key..."
+ssh-add ~/.ssh/"$key_name"
+
+echo "🔗 Cloning from: $updated_url"
+git clone "$updated_url"
+
+# Verification
+if [ $? -eq 0 ]; then
+  echo "✅ Repository cloned successfully."
+else
+  echo "❌ Error cloning the repository."
+fi
+SCRIPT_EOF
+sed -i "s|__MAIKEY__|${mainKey}|g" ~/.local/bin/clone-repo
+chmod +x ~/.local/bin/clone-repo
+echo "✅ Created ~/.local/bin/clone-repo (mainKey=$mainKey)"
+
+# Generate push-repo
+cat > ~/.local/bin/push-repo << 'SCRIPT_EOF'
+#!/bin/bash
+echo -e "\033[0;34m"
+echo "╔════════════════════════════════════════════════════════╗"
+echo "║              Push to existing repository 🦝            ║"
+echo "╚════════════════════════════════════════════════════════╝"
+echo -e "\033[0m"
+
+# Default key
+mainKey="__MAIKEY__"
+
+# Find available SSH keys
+mapfile -t ssh_keys < <(find ~/.ssh -maxdepth 1 -type f ! -name "*.pub" ! -name "config" ! -name "known_hosts*" ! -name "authorized_keys" -printf "%f\n" 2>/dev/null)
+
+if [ ${#ssh_keys[@]} -eq 0 ]; then
+    echo "❌ No SSH keys found in ~/.ssh/"
+    exit 1
+fi
+
+echo "🔑 Select the SSH key to use (ENTER = gh-$mainKey):"
+for i in "${!ssh_keys[@]}"; do
+    echo "  $((i+1))) gh-${ssh_keys[$i]}"
+done
+
+while true; do
+    read -p "Answer: " key_choice
+    if [ -z "$key_choice" ]; then
+        key_name="$mainKey"
+        break
+    fi
+    if [[ "$key_choice" =~ ^[0-9]+$ ]] && [ "$key_choice" -ge 1 ] && [ "$key_choice" -le "${#ssh_keys[@]}" ]; then
+        key_name="${ssh_keys[$((key_choice-1))]}"
+        break
+    fi
+    echo "❌ Invalid option."
+done
+
+SSH_KEY="gh-$key_name"
+
+echo "📝 Enter the first commit message:"
+read commit_message
+if [ -z "$commit_message" ]; then
+    echo "❌ Commit message cannot be empty."
+    exit 1
+fi
+
+echo "🔗 Enter the repository URL (e.g. git@github.com:user/repo.git):"
+read project_url
+
+if [[ ! "$project_url" =~ ^git@github\.com: ]]; then
+  echo "❌ Invalid repository URL. It must start with git@github.com:"
+  exit 1
+fi
+
+# Replace github.com with the selected SSH host
+updated_url=$(echo "$project_url" | sed "s/github.com/$SSH_KEY/")
+
+echo "🔑 Loading SSH key..."
+eval "$(ssh-agent -s)" > /dev/null 2>&1
+ssh-add ~/.ssh/"$key_name"
+
+echo "📦 Initializing Git repository..."
+git init
+
+echo "📁 Staging all files..."
+git add .
+
+echo "💾 Creating first commit..."
+git commit -m "$commit_message"
+
+echo "🌿 Switching to main branch..."
+git branch -M main
+
+echo "📤 Setting remote origin to: $updated_url"
+git remote add origin "$updated_url"
+
+echo "🔄 Pulling remote changes (README/LICENSE)..."
+git pull origin main --allow-unrelated-histories --no-rebase --no-edit
+
+echo "🚀 Pushing to repository..."
+git push -u origin main
+
+if [ $? -eq 0 ]; then
+  echo "✅ Code pushed successfully to the repository."
+else
+  echo "❌ Error pushing to the repository."
+  exit 1
+fi
+SCRIPT_EOF
+sed -i "s|__MAIKEY__|${mainKey}|g" ~/.local/bin/push-repo
+chmod +x ~/.local/bin/push-repo
+echo "✅ Created ~/.local/bin/push-repo (mainKey=$mainKey)"
+
 echo ""
 echo "✅ Git and SSH configuration completed successfully."
 echo "📋 Configuration summary:"

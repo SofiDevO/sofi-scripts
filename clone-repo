@@ -5,6 +5,9 @@ echo "║          Clone repository 🦝                           ║"
 echo "╚════════════════════════════════════════════════════════╝"
 echo -e "\033[0m"
 
+# Default key
+mainKey="sofidev"
+
 # Find available SSH keys
 mapfile -t ssh_keys < <(find ~/.ssh -maxdepth 1 -type f ! -name "*.pub" ! -name "config" ! -name "known_hosts" ! -name "authorized_keys" -printf "%f\n" 2>/dev/null)
 
@@ -13,13 +16,17 @@ if [ ${#ssh_keys[@]} -eq 0 ]; then
     exit 1
 fi
 
-echo "🔑 Select the SSH key to use:"
+echo "🔑 Select the SSH key to use (ENTER = gh-$mainKey):"
 for i in "${!ssh_keys[@]}"; do
     echo "  $((i+1))) gh-${ssh_keys[$i]}"
 done
 
 while true; do
     read -p "Answer: " key_choice
+    if [ -z "$key_choice" ]; then
+        key_name="$mainKey"
+        break
+    fi
     if [[ "$key_choice" =~ ^[0-9]+$ ]] && [ "$key_choice" -ge 1 ] && [ "$key_choice" -le "${#ssh_keys[@]}" ]; then
         key_name="${ssh_keys[$((key_choice-1))]}"
         break
